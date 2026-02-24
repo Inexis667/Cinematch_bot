@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CineMatch — Умный кино-бот 🎬
 
 Telegram-бот для поиска фильмов по настроению, создания коллекций и получения AI-рекомендаций.
@@ -25,3 +26,7 @@ Telegram-бот для поиска фильмов по настроению, с
 
 ## Статус проекта
 В разработке 🚧
+=======
+# Cinematch_bot
+Telegram bot for movie recommendations with mood-based search and personal collections
+>>>>>>> d7716e4a019e66a5258419c27f44babfe19f5b29
