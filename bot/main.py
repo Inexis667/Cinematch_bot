@@ -13,9 +13,18 @@ from aiogram.enums import ParseMode
 
 from bot.config import Config, load_config
 from bot.database.db import init_db
-from bot.handlers import start
+from bot.handlers import (
+    start,      # /start и главное меню
+    search,     # 🔍 Поиск фильмов
+    roulette,     # 🎲 Кино-рулетка
+    favorites,  # ❤️ Избранное
+    profile,    # 📊 Профиль пользователя
+    mood,       # 🎯 Поиск по настроению
+    common      # 🔄 Общие обработчики (детали, навигация)
+)
+from bot.services.tmdb_api import close_tmdb_client
 
-
+# ИСПРАВЛЕНО: asime -> asctime
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -51,8 +60,14 @@ async def main():
     )
     dp = Dispatcher(storage=MemoryStorage())
 
-    # Регистрируем роутеры (обработчики команд)
-    dp.include_router(start.router)
+    # РЕГИСТРИРУЕМ ВСЕ РОУТЕРЫ
+    dp.include_router(start.router)      # /start и главное меню
+    dp.include_router(search.router)     # 🔍 Поиск
+    dp.include_router(roulette.router)     # 🎲 Рулетка
+    dp.include_router(favorites.router)  # ❤️ Избранное
+    dp.include_router(profile.router)    # 📊 Профиль
+    dp.include_router(mood.router)       # 🎯 Настроение
+    dp.include_router(common.router)     # 🔄 Навигация
 
     # Пропускаем накопившиеся обновления
     await bot.delete_webhook(drop_pending_updates=True)
@@ -71,6 +86,7 @@ async def main():
     finally:
         await bot.session.close()
         await dp.storage.close()
+        await close_tmdb_client()
         logger.info("👋 Бот остановлен")
 
 

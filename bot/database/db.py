@@ -3,6 +3,7 @@ import os
 import json
 from pathlib import Path
 from dotenv import load_dotenv
+from typing import Dict, List, Optional
 
 load_dotenv()
 
@@ -214,6 +215,111 @@ async def add_search_history(telegram_id: int, query: str):
 
 async def get_search_history(telegram_id: int, limit: int = 10):
     """Получить историю поиска пользователя"""
+    user = await get_user(telegram_id)
+    if not user:
+        return []
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("""
+            SELECT query, created_at FROM search_history
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (user['id'], limit)) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def add_experience(telegram_id: int, exp_points: int):
+    """
+    Добавить опыт пользователю
+    При достижении определенного количества опыта - повышает уровень
+    """
+    user = await get_user(telegram_id)
+    if not user:
+        return
+
+    new_exp = user['experience'] + exp_points
+    current_level = user['level']
+
+    # Проверяем, нужно ли повысить уровень (каждый уровень требует level * 100 опыта)
+    exp_needed_for_next_level = current_level * 100
+
+    while new_exp >= exp_needed_for_next_level and current_level < 10:
+        new_exp -= exp_needed_for_next_level
+        current_level += 1
+        exp_needed_for_next_level = current_level * 100
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE users SET level = ?, experience = ? WHERE telegram_id = ?",
+            (current_level, new_exp, telegram_id)
+        )
+        await db.commit()
+
+    return current_level, new_exp
+
+
+async def get_user_stats(telegram_id: int) -> Dict:
+    """Получить полную статистику пользователя"""
+    user = await get_user(telegram_id)
+    if not user:
+        return {}
+
+    # Получаем дополнительную статистику
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        # Количество в избранном
+        async with db.execute("""
+            SELECT COUNT(*) as count FROM favorites f
+            JOIN users u ON f.user_id = u.id
+            WHERE u.telegram_id = ?
+        """, (telegram_id,)) as cursor:
+            fav_count = (await cursor.fetchone())['count']
+
+        # Количество поисков
+        async with db.execute("""
+            SELECT COUNT(*) as count FROM search_history sh
+            JOIN users u ON sh.user_id = u.id
+            WHERE u.telegram_id = ?
+        """, (telegram_id,)) as cursor:
+            search_count = (await cursor.fetchone())['count']
+
+        return {
+            'level': user['level'],
+            'experience': user['experience'],
+            'fav_count': fav_count,
+            'search_count': search_count,
+            'created_at': user['created_at']
+        }
+
+
+async def add_search_history(telegram_id: int, query: str):
+    """Добавить запрос в историю поиска (с сохранением в БД)"""
+    user = await get_user(telegram_id)
+    if not user:
+        return
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO search_history (user_id, query) VALUES (?, ?)",
+            (user['id'], query)
+        )
+        await db.commit()
+
+    # Добавляем опыт за поиск
+    await add_experience(telegram_id, 3)  # +3 опыта за поиск
+
+
+async def add_favorite_experience(telegram_id: int):
+    """Добавить опыт за добавление в избранное"""
+    await add_experience(telegram_id, 5)  # +5 опыта за добавление
+
+
+async def get_search_history(telegram_id: int, limit: int = 10) -> List[Dict]:
+    """Получить историю поиска пользователя из БД"""
     user = await get_user(telegram_id)
     if not user:
         return []

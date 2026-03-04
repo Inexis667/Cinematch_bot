@@ -2,105 +2,198 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
 
-# ========== ГЛАВНОЕ МЕНЮ (Reply Keyboard) ==========
+# ========== ГЛАВНОЕ МЕНЮ ==========
 def get_main_keyboard() -> ReplyKeyboardMarkup:
-    """Главное меню с кнопками"""
+    """
+    Главное меню с красивыми кнопками
+    Возвращает клавиатуру, которая всегда снизу
+    """
     builder = ReplyKeyboardBuilder()
 
-    # Первый ряд
+    # Верхний ряд - основные функции
     builder.row(
-        KeyboardButton(text="🎲 Случайный фильм"),
-        KeyboardButton(text="🔍 Поиск")
+        KeyboardButton(text="🎲 РУЛЕТКА"),
+        KeyboardButton(text="🔍 ПОИСК")
     )
 
-    # Второй ряд
+    # Средний ряд - коллекции
     builder.row(
-        KeyboardButton(text="❤️ Избранное"),
-        KeyboardButton(text="📊 Профиль")
+        KeyboardButton(text="❤️ МОЁ"),
+        KeyboardButton(text="📊 ПРОФИЛЬ")
     )
 
-    # Третий ряд
+    # Нижний ряд - дополнительные функции
     builder.row(
-        KeyboardButton(text="🎯 По настроению"),
-        KeyboardButton(text="❓ Помощь")
+        KeyboardButton(text="🎯 НАСТРОЕНИЕ"),
+        KeyboardButton(text="❓ ПОМОЩЬ")
     )
 
-    return builder.as_markup(resize_keyboard=True)  # Кнопки подгоняются под размер
+    return builder.as_markup(
+        resize_keyboard=True,  # Кнопки подгоняются под размер
+        input_field_placeholder="👇 Нажми на кнопку..."  # Подсказка в поле ввода
+    )
 
 
-# ========== ПОИСК ПО НАСТРОЕНИЮ (Inline Keyboard) ==========
+# ========== МЕНЮ НАСТРОЕНИЙ ==========
 def get_mood_keyboard() -> InlineKeyboardMarkup:
-    """Кнопки для выбора настроения"""
+    """
+    Красивое меню выбора настроения
+    """
     builder = InlineKeyboardBuilder()
 
     moods = [
-        ("😂 Посмеяться", "mood_comedy"),
-        ("😢 Погрустить", "mood_drama"),
-        ("😱 Напряжение", "mood_thriller"),
-        ("💕 Для двоих", "mood_romance"),
-        ("🍿 Для компании", "mood_group"),
-        ("🎄 Семейный", "mood_family"),
-        ("🔥 Боевик", "mood_action"),
-        ("🤔 Задуматься", "mood_philosophy")
+        ("😂 Смех", "mood_comedy", "🎭"),
+        ("😢 Грусть", "mood_drama", "💧"),
+        ("😱 Адреналин", "mood_thriller", "⚡"),
+        ("💕 Романтика", "mood_romance", "🌸"),
+        ("👥 Компания", "mood_group", "🍕"),
+        ("👪 Семья", "mood_family", "🏡"),
+        ("💪 Экшен", "mood_action", "💥"),
+        ("🤔 Мысли", "mood_philosophy", "🧠")
     ]
 
-    # Создаем кнопки в 2 столбца
-    for text, callback in moods:
-        builder.button(text=text, callback_data=callback)
+    for text, callback, emoji in moods:
+        builder.button(
+            text=f"{emoji} {text}",
+            callback_data=callback
+        )
 
     builder.adjust(2)  # По 2 кнопки в ряд
     return builder.as_markup()
 
 
-# ========== КНОПКИ ДЛЯ КАРТОЧКИ ФИЛЬМА ==========
+# ========== КНОПКИ ДЛЯ ФИЛЬМА ==========
 def get_movie_actions_keyboard(movie_id: int, is_favorite: bool = False) -> InlineKeyboardMarkup:
-    """Кнопки под карточкой фильма"""
+    """
+    Кнопки под карточкой фильма
+    """
     builder = InlineKeyboardBuilder()
 
-    # Первый ряд
+    # Верхний ряд - информация
     builder.row(
-        InlineKeyboardButton(text="📋 Подробнее", callback_data=f"detail_{movie_id}"),
-        InlineKeyboardButton(text="🎬 Трейлер", callback_data=f"trailer_{movie_id}")
+        InlineKeyboardButton(
+            text="📖 Подробнее",
+            callback_data=f"detail_{movie_id}"
+        ),
+        InlineKeyboardButton(
+            text="🎬 Трейлер",
+            callback_data=f"trailer_{movie_id}",
+            url="https://youtube.com"  # Заглушка
+        )
     )
 
-    # Второй ряд
+    # Средний ряд - действия
+    fav_text = "❤️ В избранное" if not is_favorite else "❌ Удалить"
     builder.row(
-        InlineKeyboardButton(text="❤️ В избранное" if not is_favorite else "❌ Из избранного",
-                             callback_data=f"fav_{movie_id}"),
-        InlineKeyboardButton(text="🔍 Похожие", callback_data=f"similar_{movie_id}")
+        InlineKeyboardButton(
+            text=fav_text,
+            callback_data=f"fav_{movie_id}"
+        ),
+        InlineKeyboardButton(
+            text="🔍 Похожие",
+            callback_data=f"similar_{movie_id}"
+        )
+    )
+
+    # Нижний ряд - навигация
+    builder.row(
+        InlineKeyboardButton(
+            text="🏠 Меню",
+            callback_data="nav_main"
+        )
     )
 
     return builder.as_markup()
 
 
-# ========== КНОПКИ ДЛЯ ИЗБРАННОГО ==========
+# ========== ПАПКИ ИЗБРАННОГО ==========
 def get_folders_keyboard() -> InlineKeyboardMarkup:
-    """Папки для сохранения фильмов"""
+    """
+    Красивые папки для коллекций
+    """
     builder = InlineKeyboardBuilder()
 
     folders = [
-        ("📁 Избранное", "folder_favorites"),
-        ("🍿 Посмотреть позже", "folder_watchlist"),
-        ("🏆 Любимое", "folder_top"),
-        ("👥 С друзьями", "folder_friends"),
-        ("➕ Новая папка", "new_folder")
+        ("⭐ Избранное", "folder_favorites"),
+        ("📋 К просмотру", "folder_watchlist"),
+        ("🏆 Шедевры", "folder_top"),
+        ("👥 С друзьями", "folder_friends")
     ]
 
     for text, callback in folders:
-        builder.button(text=text, callback_data=callback)
+        builder.button(
+            text=f"📁 {text}",
+            callback_data=callback
+        )
 
-    builder.adjust(2, 2, 1)  # 2,2,1 ряд
+    builder.row(
+        InlineKeyboardButton(
+            text="➕ Создать папку",
+            callback_data="new_folder"
+        )
+    )
+
     return builder.as_markup()
 
 
-# ========== КНОПКИ НАВИГАЦИИ ==========
-def get_navigation_keyboard() -> InlineKeyboardMarkup:
-    """Кнопки навигации"""
+# ========== НАВИГАЦИЯ ==========
+def get_navigation_keyboard(show_back: bool = True, show_main: bool = True) -> InlineKeyboardMarkup:
+    """
+    Кнопки навигации
+    """
     builder = InlineKeyboardBuilder()
+    buttons = []
 
-    builder.row(
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="nav_back"),
-        InlineKeyboardButton(text="🏠 Главное меню", callback_data="nav_main")
+    if show_back:
+        buttons.append(
+            InlineKeyboardButton(
+                text="◀️ Назад",
+                callback_data="nav_back"
+            )
+        )
+
+    if show_main:
+        buttons.append(
+            InlineKeyboardButton(
+                text="🏠 Главная",
+                callback_data="nav_main"
+            )
+        )
+
+    builder.row(*buttons)
+    return builder.as_markup()
+
+
+# ========== КНОПКИ ДЛЯ ПАГИНАЦИИ ==========
+def get_pagination_keyboard(current: int, total: int, prefix: str, user_id: int) -> InlineKeyboardMarkup:
+    """
+    Красивая навигация по страницам
+    """
+    builder = InlineKeyboardBuilder()
+    buttons = []
+
+    if current > 1:
+        buttons.append(
+            InlineKeyboardButton(
+                text="◀️",
+                callback_data=f"{prefix}_prev_{user_id}_{current}"
+            )
+        )
+
+    buttons.append(
+        InlineKeyboardButton(
+            text=f"📄 {current}/{total}",
+            callback_data="noop"
+        )
     )
 
+    if current < total:
+        buttons.append(
+            InlineKeyboardButton(
+                text="▶️",
+                callback_data=f"{prefix}_next_{user_id}_{current}"
+            )
+        )
+
+    builder.row(*buttons)
     return builder.as_markup()
