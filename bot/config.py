@@ -23,9 +23,3 @@ def load_config() -> Config:
         kinopoisk_api_token=os.getenv("KINOPOISK_API_TOKEN"),
         database_path=os.getenv("DATABASE_PATH", "data/kinobot.db")
     )
-
-# Для проверки
-if __name__ == "__main__":
-    config = load_config()
-    print(f"BOT_TOKEN: {'✅ загружен' if config.bot_token else '❌ не найден'}")
-    print(f"DATABASE_PATH: {config.database_path}")

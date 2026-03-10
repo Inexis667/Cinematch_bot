@@ -6,62 +6,61 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import random
 
 from bot.services.tmdb_api import get_tmdb_client
-from bot.keyboards.reply import get_main_keyboard, get_mood_keyboard
+from bot.keyboards.reply import get_main_keyboard
 
 router = Router()
 
-# Кэш для результатов поиска по настроению
+# Словарь для хранения временных результатов поиска
 mood_cache = {}
 
-# Соответствие настроения жанрам
 MOOD_MAP = {
     "mood_comedy": {
-        "name": "😂 ПОСМЕЯТЬСЯ",
+        "name": "😂 КОМЕДИЯ",
         "emoji": "😂",
-        "genres": [35],  # Комедия
+        "genres": [35],
         "description": "Самые смешные комедии для хорошего настроения"
     },
     "mood_drama": {
-        "name": "😢 ПОГРУСТИТЬ",
+        "name": "😢 ДРАМА",
         "emoji": "😢",
-        "genres": [18],  # Драма
+        "genres": [18],
         "description": "Глубокие и трогательные драмы"
     },
     "mood_thriller": {
-        "name": "😱 НАПРЯЖЕНИЕ",
+        "name": "😱 ТРИЛЛЕР",
         "emoji": "😱",
-        "genres": [53, 80],  # Триллер, Криминал
+        "genres": [53, 80],
         "description": "Держащие в напряжении триллеры"
     },
     "mood_romance": {
-        "name": "💕 ДЛЯ ДВОИХ",
+        "name": "💕 РОМАНТИКА",
         "emoji": "💕",
-        "genres": [10749],  # Мелодрама
+        "genres": [10749],
         "description": "Романтические фильмы для особого вечера"
     },
     "mood_action": {
-        "name": "💥 ЭКШЕН",
+        "name": "💥 БОЕВИК",
         "emoji": "💥",
-        "genres": [28, 12],  # Боевик, Приключения
+        "genres": [28, 12],
         "description": "Взрывные боевики и приключения"
     },
     "mood_family": {
         "name": "👪 СЕМЕЙНЫЙ",
         "emoji": "👪",
-        "genres": [10751, 16],  # Семейный, Мультфильм
+        "genres": [10751, 16],
         "description": "Фильмы для всей семьи"
-    },
-    "mood_philosophy": {
-        "name": "🤔 ЗАДУМАТЬСЯ",
-        "emoji": "🤔",
-        "genres": [18, 9648],  # Драма, Детектив
-        "description": "Глубокие фильмы для размышлений"
     },
     "mood_horror": {
         "name": "👻 УЖАСЫ",
         "emoji": "👻",
-        "genres": [27],  # Ужасы
+        "genres": [27],
         "description": "Страшные и мистические фильмы"
+    },
+    "mood_sci_fi": {
+        "name": "🤖 ФАНТАСТИКА",
+        "emoji": "🤖",
+        "genres": [878],
+        "description": "Невероятные миры и технологии будущего"
     }
 }
 
@@ -69,14 +68,34 @@ MOOD_MAP = {
 @router.message(F.text == "🎯 НАСТРОЕНИЕ")
 @router.message(Command("mood"))
 async def show_mood_menu(message: Message):
-    """Показать меню выбора настроения"""
+    """Показать меню выбора настроения/жанра"""
     text = (
-        f"🎯 {hbold('ВЫБЕРИ НАСТРОЕНИЕ')}\n\n"
-        f"{hitalic('Я подберу фильмы под твое состояние')}\n\n"
+        f"🎭 {hbold('ВЫБЕРИ НАСТРОЕНИЕ')}\n\n"
+        f"{hitalic('Я подберу фильмы под твое состояние или любимый жанр')}\n\n"
         f"👇 Нажимай на кнопки ниже:"
     )
 
-    await message.answer(text, reply_markup=get_mood_keyboard())
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="😂 Комедия", callback_data="mood_comedy"),
+            InlineKeyboardButton(text="😢 Драма", callback_data="mood_drama")
+        ],
+        [
+            InlineKeyboardButton(text="😱 Триллер", callback_data="mood_thriller"),
+            InlineKeyboardButton(text="💕 Романтика", callback_data="mood_romance")
+        ],
+        [
+            InlineKeyboardButton(text="💥 Боевик", callback_data="mood_action"),
+            InlineKeyboardButton(text="👪 Семейный", callback_data="mood_family")
+        ],
+        [
+            InlineKeyboardButton(text="👻 Ужасы", callback_data="mood_horror"),
+            InlineKeyboardButton(text="🤖 Фантастика", callback_data="mood_sci_fi")
+        ],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="nav_main")]
+    ])
+
+    await message.answer(text, reply_markup=keyboard)
 
 
 @router.callback_query(F.data.startswith("mood_"))
@@ -90,79 +109,40 @@ async def process_mood(callback: CallbackQuery):
         await callback.answer("Ошибка", show_alert=True)
         return
 
-    # Отправляем сообщение о поиске
+    # Показываем сообщение о поиске
     await callback.message.edit_text(
         f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
         f"{hitalic('Ищем лучшие фильмы...')} ⏳"
     )
 
     try:
-        # Ищем фильмы по жанрам
         client = await get_tmdb_client()
-
-        # Берем первый жанр из списка для поиска
         genre_id = mood_data['genres'][0]
-
-        # Поиск по жанру
-        result = await client.discover_movies(genre_id)
+        result = await client.discover_movies(genre_id=genre_id)
 
         if not result or not result.get("results"):
             await callback.message.edit_text(
                 f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
                 f"😢 Не удалось найти фильмы. Попробуй позже.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="◀️ Назад", callback_data="nav_back")]
+                    [InlineKeyboardButton(text="◀️ Назад к жанрам", callback_data="nav_back")]
                 ])
             )
             await callback.answer()
             return
 
-        # Выбираем случайные 5 фильмов
-        movies = result["results"][:10]
-        random.shuffle(movies)
-        movies = movies[:5]
+        # Берём все результаты и перемешиваем
+        all_movies = result["results"]
+        random.shuffle(all_movies)
 
-        # 🔥 СОХРАНЯЕМ В КЭШ ДЛЯ ВОЗВРАТА 🔥
+        # Сохраняем в кэш
         mood_cache[user_id] = {
             "mood": mood_key,
-            "results": movies,
-            "total": len(movies),
-            "page": 1
+            "all_movies": all_movies,
+            "page": 0  # страница 0 = первые 5 фильмов
         }
 
-        # Формируем результат
-        text = (
-            f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
-            f"📝 {mood_data['description']}\n\n"
-            f"{hbold('РЕКОМЕНДУЮ:')}\n\n"
-        )
-
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-
-        for i, movie in enumerate(movies, 1):
-            title = movie.get('title', 'Без названия')
-            year = movie.get('release_date', '')[:4] if movie.get('release_date') else 'Неизвестно'
-            rating = movie.get('vote_average', 0)
-
-            text += f"{i}. {hbold(title)} ({year}) - ⭐ {rating}/10\n"
-
-            # Добавляем кнопку для каждого фильма
-            keyboard.inline_keyboard.append([
-                InlineKeyboardButton(
-                    text=f"🎬 {i}. {title[:30]}...",
-                    callback_data=f"detail_{movie['id']}"
-                )
-            ])
-
-        text += f"\n🎯 Настроение: {mood_data['name']}"
-
-        # Добавляем кнопки навигации
-        keyboard.inline_keyboard.append([
-            InlineKeyboardButton(text="🎲 Другие", callback_data=f"mood_more_{mood_key}"),
-            InlineKeyboardButton(text="🏠 Меню", callback_data="nav_main")
-        ])
-
-        await callback.message.edit_text(text, reply_markup=keyboard)
+        await show_movies_page(callback.message, user_id, mood_data, page=0)
 
     except Exception as e:
         await callback.message.edit_text(
@@ -171,37 +151,25 @@ async def process_mood(callback: CallbackQuery):
                 [InlineKeyboardButton(text="◀️ Назад", callback_data="nav_back")]
             ])
         )
-
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("mood_more_"))
-async def more_mood_movies(callback: CallbackQuery):
-    """Показать еще фильмы по настроению"""
-    mood_key = callback.data.replace("mood_more_", "")
-    await process_mood(callback)
-
-
-# Функция для показа результатов настроения (для навигации)
-async def show_mood_results(message: Message, user_id: int):
-    """Показать сохраненные результаты настроения"""
+async def show_movies_page(message: Message, user_id: int, mood_data: dict, page: int):
+    """Показать страницу с фильмами"""
     if user_id not in mood_cache:
-        await message.answer(
-            "🎯 Выбери настроение:",
-            reply_markup=get_mood_keyboard()
-        )
         return
 
-    data = mood_cache[user_id]
-    mood_data = MOOD_MAP.get(data["mood"])
-    movies = data["results"]
+    cache = mood_cache[user_id]
+    all_movies = cache["all_movies"]
+    start_idx = page * 5
+    end_idx = start_idx + 5
+    movies_to_show = all_movies[start_idx:end_idx]
 
-    if not mood_data or not movies:
-        await message.answer(
-            "🎯 Выбери настроение:",
-            reply_markup=get_mood_keyboard()
-        )
-        return
+    if not movies_to_show:
+        # Если фильмы кончились, показываем первую страницу
+        page = 0
+        movies_to_show = all_movies[:5]
+        cache["page"] = 0
 
     text = (
         f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
@@ -211,13 +179,12 @@ async def show_mood_results(message: Message, user_id: int):
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
 
-    for i, movie in enumerate(movies, 1):
+    for i, movie in enumerate(movies_to_show, start_idx + 1):
         title = movie.get('title', 'Без названия')
         year = movie.get('release_date', '')[:4] if movie.get('release_date') else 'Неизвестно'
         rating = movie.get('vote_average', 0)
 
-        text += f"{i}. {hbold(title)} ({year}) - ⭐ {rating}/10\n"
-
+        text += f"{i}. {hbold(title)} ({year}) - ⭐ {rating:.1f}/10\n"
         keyboard.inline_keyboard.append([
             InlineKeyboardButton(
                 text=f"🎬 {i}. {title[:30]}...",
@@ -227,9 +194,64 @@ async def show_mood_results(message: Message, user_id: int):
 
     text += f"\n🎯 Настроение: {mood_data['name']}"
 
-    keyboard.inline_keyboard.append([
-        InlineKeyboardButton(text="🎲 Другие", callback_data=f"mood_more_{data['mood']}"),
-        InlineKeyboardButton(text="🏠 Меню", callback_data="nav_main")
-    ])
+    # Кнопки навигации
+    nav_buttons = []
 
-    await message.answer(text, reply_markup=keyboard)
+    # Кнопка "Другие" (следующая страница)
+    nav_buttons.append(InlineKeyboardButton(
+        text="🎲 Другие",
+        callback_data=f"mood_page_{page + 1}"
+    ))
+
+    nav_buttons.append(InlineKeyboardButton(
+        text="🏠 Меню",
+        callback_data="nav_main"
+    ))
+
+    keyboard.inline_keyboard.append(nav_buttons)
+
+    # Сохраняем текущую страницу
+    cache["page"] = page
+
+    # Отправляем или редактируем сообщение
+    if message.caption:  # если это фото с подписью
+        await message.edit_caption(caption=text, reply_markup=keyboard)
+    else:  # если это обычный текст
+        await message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data.startswith("mood_page_"))
+async def mood_page(callback: CallbackQuery):
+    """Переключение страницы с фильмами"""
+    try:
+        page = int(callback.data.replace("mood_page_", ""))
+    except:
+        page = 0
+
+    user_id = callback.from_user.id
+
+    if user_id not in mood_cache:
+        await callback.answer("Поиск устарел, начни заново", show_alert=True)
+        return
+
+    cache = mood_cache[user_id]
+    mood_data = MOOD_MAP.get(cache["mood"])
+
+    await show_movies_page(callback.message, user_id, mood_data, page)
+    await callback.answer()
+
+
+# Функция для возврата к результатам настроения (для навигации)
+async def show_mood_results(message: Message, user_id: int):
+    """Показать сохраненные результаты настроения"""
+    if user_id not in mood_cache:
+        await show_mood_menu(message)
+        return
+
+    cache = mood_cache[user_id]
+    mood_data = MOOD_MAP.get(cache["mood"])
+    if not mood_data:
+        await show_mood_menu(message)
+        return
+
+    await show_movies_page(message, user_id, mood_data, cache["page"])

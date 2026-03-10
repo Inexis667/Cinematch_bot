@@ -1,6 +1,6 @@
+import random
 import aiohttp
 import os
-import random
 from typing import Dict, Optional
 from dotenv import load_dotenv
 
@@ -58,23 +58,15 @@ class TMDBClient:
     async def search_movies(self, query: str, page: int = 1) -> Dict:
         """
         Поиск фильмов по названию
-
-        Args:
-            query: поисковый запрос
-            page: страница результатов
-
-        Returns:
-            Dict с результатами поиска
         """
         session = await self.get_session()
-
         url = f"{BASE_URL}/search/movie"
         params = {
             "api_key": self.api_key,
             "query": query,
             "language": "ru-RU",
             "page": page,
-            "include_adult": "false"  # ← ИСПРАВЛЕНО: строка вместо булева
+            "include_adult": "false"
         }
 
         try:
@@ -156,20 +148,13 @@ class TMDBClient:
     async def get_movie_details(self, movie_id: int) -> Optional[Dict]:
         """
         Получить детальную информацию о фильме
-
-        Args:
-            movie_id: ID фильма в TMDb
-
-        Returns:
-            Dict с деталями фильма
         """
         session = await self.get_session()
-
         url = f"{BASE_URL}/movie/{movie_id}"
         params = {
             "api_key": self.api_key,
             "language": "ru-RU",
-            "append_to_response": "videos,credits,similar"
+            "append_to_response": "videos,credits"
         }
 
         try:
@@ -178,51 +163,12 @@ class TMDBClient:
                     return await response.json()
                 return None
         except Exception as e:
-            print(f"Ошибка получения деталей: {e}")
+            print(f"❌ Ошибка получения деталей: {e}")
             return None
-
-    async def get_random_movie(self) -> Optional[Dict]:
-        """
-        Получить случайный популярный фильм
-        Теперь выбирает со случайной страницы для разнообразия
-
-        Returns:
-            Dict с данными фильма
-        """
-        # Выбираем случайную страницу (1-5)
-        page = random.randint(1, 5)
-
-        # Получаем популярные фильмы
-        popular = await self.get_popular_movies(page)
-
-        if not popular or not popular.get("results"):
-            # Если не получилось, пробуем поиск
-            search_result = await self.search_movies("")
-            if search_result and search_result.get("results"):
-                movies = search_result["results"]
-            else:
-                return None
-        else:
-            movies = popular["results"]
-
-        if not movies:
-            return None
-
-        # Выбираем случайный фильм
-        movie = random.choice(movies)
-
-        # Получаем полные детали
-        return await self.get_movie_details(movie["id"])
 
     def format_movie_for_display(self, movie_data: Dict) -> Dict:
         """
         Форматирует данные фильма для красивого отображения
-
-        Args:
-            movie_data: сырые данные из API
-
-        Returns:
-            Dict с отформатированными данными
         """
         # Основная информация
         title = movie_data.get("title", "Без названия")
@@ -240,35 +186,31 @@ class TMDBClient:
         else:
             rating_text = "⭐ Нет оценок"
 
-        # Описание (оставляем полным для деталей)
+        # Описание
         overview = movie_data.get("overview", "Описание отсутствует")
 
-        # Жанры (исправлено!)
-        genres = movie_data.get("genres", [])
-        if isinstance(genres, str):
-            # Если жанры пришли как строка - пытаемся распарсить
-            try:
-                import json
-                genres = json.loads(genres)
-            except:
-                genres = []
-
+        # --- ИСПРАВЛЕНИЕ ЖАНРОВ ---
         genre_names = []
-        if isinstance(genres, list):
-            for g in genres:
-                if isinstance(g, dict):
-                    genre_names.append(g.get("name", "Неизвестно"))
-                elif isinstance(g, (int, str)):
-                    # Если пришёл ID жанра
-                    genre_names.append(GENRE_MAP.get(int(g) if str(g).isdigit() else g, str(g)))
+        # Жанры могут приходить по-разному
+        genres = movie_data.get("genres", [])
+
+        if genres and isinstance(genres, list):
+            # Если это список словарей (как в детальном запросе)
+            if isinstance(genres[0], dict):
+                genre_names = [g["name"] for g in genres if g.get("name")]
+            # Если это список ID (как в поиске)
+            elif isinstance(genres[0], int):
+                genre_names = [GENRE_MAP.get(g, str(g)) for g in genres]
+        elif movie_data.get("genre_ids"):  # Иногда жанры лежат в отдельном поле
+            genre_ids = movie_data.get("genre_ids", [])
+            genre_names = [GENRE_MAP.get(g, str(g)) for g in genre_ids]
 
         genre_text = ", ".join(genre_names) if genre_names else "Неизвестно"
+        # ---------------------------
 
         # Постер
         poster_path = movie_data.get("poster_path")
         poster_url = f"{IMAGE_BASE_URL}{poster_path}" if poster_path else None
-
-        # Большой постер
         backdrop_path = movie_data.get("backdrop_path")
         backdrop_url = f"{LARGE_IMAGE_URL}{backdrop_path}" if backdrop_path else poster_url
 
@@ -281,12 +223,11 @@ class TMDBClient:
                     director = person.get("name", "Неизвестно")
                     break
 
-        # Актеры (первые 5)
+        # Актеры
         cast = []
         if "credits" in movie_data:
             for actor in movie_data["credits"].get("cast", [])[:5]:
                 cast.append(actor.get("name", "Неизвестно"))
-
         cast_text = ", ".join(cast) if cast else "Информация отсутствует"
 
         # Трейлер
@@ -306,7 +247,7 @@ class TMDBClient:
             "rating": vote_average,
             "rating_text": rating_text,
             "description": overview,
-            "genres": genre_text,
+            "genres": genre_text,  # ← Сюда пойдет исправленный текст
             "director": director,
             "cast": cast_text,
             "poster_url": poster_url,
