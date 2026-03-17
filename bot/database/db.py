@@ -69,11 +69,16 @@ async def update_user_level(telegram_id: int, new_level: int):
         await db.commit()
 
 
-# ========== РАБОТА С ФИЛЬМАМИ ==========
-
 async def save_movie(movie_data: dict):
     """Сохранить фильм в кэш"""
     async with aiosqlite.connect(DB_PATH) as db:
+        # Убеждаемся, что жанры сохраняются как JSON
+        genres_json = movie_data.get('genres')
+        if isinstance(genres_json, list):
+            genres_json = json.dumps(genres_json)
+        elif not isinstance(genres_json, str):
+            genres_json = '[]'
+
         await db.execute("""
             INSERT OR REPLACE INTO movies 
             (tmdb_id, title, original_title, description, rating, 
@@ -87,7 +92,7 @@ async def save_movie(movie_data: dict):
             movie_data.get('rating'),
             movie_data.get('poster_path'),
             movie_data.get('release_year'),
-            json.dumps(movie_data.get('genres', []))
+            genres_json  # ← используем обработанные жанры
         ))
         await db.commit()
         return True

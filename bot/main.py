@@ -12,19 +12,20 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from bot.config import Config, load_config
+
 from bot.database.db import init_db
 from bot.handlers import (
-    start,      # /start и главное меню
-    search,     # 🔍 Поиск фильмов
-    roulette,     # 🎲 Кино-рулетка
-    favorites,  # ❤️ Избранное
-    profile,    # 📊 Профиль пользователя
-    mood,       # 🎯 Поиск по настроению
-    common      # 🔄 Общие обработчики (детали, навигация)
+    start,           # /start и главное меню
+    search,          # 🔍 Поиск фильмов
+    roulette,        # 🎲 Кино-рулетка
+    favorites,       # ❤️ Избранное
+    profile,         # 📊 Профиль пользователя
+    mood,            # 🎯 Поиск по настроению
+    common,          # 🔄 Общие обработчики (детали, навигация)
+    recommendations  # 🤖 AI-рекомендации (НОВОЕ!)
 )
 from bot.services.tmdb_api import close_tmdb_client
 
-# ИСПРАВЛЕНО: asime -> asctime
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -61,13 +62,14 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
 
     # РЕГИСТРИРУЕМ ВСЕ РОУТЕРЫ
-    dp.include_router(start.router)      # /start и главное меню
-    dp.include_router(search.router)     # 🔍 Поиск
-    dp.include_router(roulette.router)     # 🎲 Рулетка
-    dp.include_router(favorites.router)  # ❤️ Избранное
-    dp.include_router(profile.router)    # 📊 Профиль
-    dp.include_router(mood.router)       # 🎯 Настроение
-    dp.include_router(common.router)     # 🔄 Навигация
+    dp.include_router(start.router)           # /start и главное меню
+    dp.include_router(search.router)          # 🔍 Поиск
+    dp.include_router(roulette.router)        # 🎲 Рулетка
+    dp.include_router(favorites.router)       # ❤️ Избранное
+    dp.include_router(profile.router)         # 📊 Профиль
+    dp.include_router(mood.router)            # 🎯 Настроение
+    dp.include_router(common.router)          # 🔄 Навигация
+    dp.include_router(recommendations.router) # 🤖 AI-рекомендации (НОВОЕ!)
 
     # Пропускаем накопившиеся обновления
     await bot.delete_webhook(drop_pending_updates=True)

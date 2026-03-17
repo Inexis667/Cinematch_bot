@@ -65,6 +65,11 @@ async def show_favorite(message: Message, user_id: int, index: int):
         InlineKeyboardButton(text="❌ Удалить", callback_data=f"fav_{movie['tmdb_id']}")
     ])
 
+    # 🔥 НОВАЯ КНОПКА ПОХОЖИХ
+    keyboard.inline_keyboard.append([
+        InlineKeyboardButton(text="🔍 Похожие", callback_data=f"similar_{movie['tmdb_id']}")
+    ])
+
     keyboard.inline_keyboard.append([
         InlineKeyboardButton(text="🏠 Меню", callback_data="nav_main")
     ])

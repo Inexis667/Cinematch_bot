@@ -8,7 +8,7 @@ import random
 import json
 
 from bot.services.tmdb_api import get_tmdb_client
-from bot.database.db import save_movie, get_favorites
+from bot.database.db import save_movie, get_favorites, add_experience
 from bot.keyboards.reply import get_main_keyboard
 
 router = Router()
@@ -17,8 +17,10 @@ router = Router()
 @router.message(F.text == "🎲 РУЛЕТКА")
 @router.message(Command("random"))
 async def cmd_random(message: Message):
-    """Случайный фильм"""
-    # Эффект рулетки
+    user_id = message.from_user.id
+
+    await add_experience(user_id, 2)
+
     msg = await message.answer("🎲 Крутим барабан... ⏳")
     await asyncio.sleep(1)
     await msg.delete()

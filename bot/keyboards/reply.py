@@ -2,35 +2,38 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
 
-# ========== ГЛАВНОЕ МЕНЮ ==========
 def get_main_keyboard() -> ReplyKeyboardMarkup:
     """
     Главное меню с красивыми кнопками
-    Возвращает клавиатуру, которая всегда снизу
     """
     builder = ReplyKeyboardBuilder()
 
-    # Верхний ряд - основные функции
+    # Ряд 1 - Поиск и открытия
     builder.row(
-        KeyboardButton(text="🎲 РУЛЕТКА"),
-        KeyboardButton(text="🔍 ПОИСК")
+        KeyboardButton(text="🔍 ПОИСК"),
+        KeyboardButton(text="🎲 РУЛЕТКА")
     )
 
-    # Средний ряд - коллекции
+    # Ряд 2 - Коллекции и профиль
     builder.row(
-        KeyboardButton(text="❤️ МОЁ"),
+        KeyboardButton(text="❤️ ИЗБРАННОЕ"),
         KeyboardButton(text="📊 ПРОФИЛЬ")
     )
 
-    # Нижний ряд - дополнительные функции
+    # Ряд 3 - AI и настроение
     builder.row(
-        KeyboardButton(text="🎯 НАСТРОЕНИЕ"),
+        KeyboardButton(text="🤖 AI СОВЕТЫ"),
+        KeyboardButton(text="🎯 НАСТРОЕНИЕ")
+    )
+
+    # Ряд 4 - Помощь
+    builder.row(
         KeyboardButton(text="❓ ПОМОЩЬ")
     )
 
     return builder.as_markup(
-        resize_keyboard=True,  # Кнопки подгоняются под размер
-        input_field_placeholder="👇 Нажми на кнопку..."  # Подсказка в поле ввода
+        resize_keyboard=True,
+        input_field_placeholder="👇 Выбери действие..."
     )
 
 

@@ -5,6 +5,7 @@ from . import favorites
 from . import profile
 from . import mood
 from . import common
+from . import recommendations
 
 __all__ = [
     'start',

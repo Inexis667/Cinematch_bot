@@ -7,6 +7,7 @@ import random
 
 from bot.services.tmdb_api import get_tmdb_client
 from bot.keyboards.reply import get_main_keyboard
+from bot.database.db import add_experience
 
 router = Router()
 
@@ -98,7 +99,7 @@ async def show_mood_menu(message: Message):
     await message.answer(text, reply_markup=keyboard)
 
 
-@router.callback_query(F.data.startswith("mood_"))
+@router.callback_query(F.data.startswith("mood_") & ~F.data.startswith("mood_page"))
 async def process_mood(callback: CallbackQuery):
     """Обработка выбора настроения"""
     mood_key = callback.data
@@ -109,11 +110,22 @@ async def process_mood(callback: CallbackQuery):
         await callback.answer("Ошибка", show_alert=True)
         return
 
+    await add_experience(user_id, 2)
+
     # Показываем сообщение о поиске
-    await callback.message.edit_text(
-        f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
-        f"{hitalic('Ищем лучшие фильмы...')} ⏳"
-    )
+    try:
+        await callback.message.edit_text(
+            f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
+            f"{hitalic('Ищем лучшие фильмы...')} ⏳"
+        )
+    except:
+        # Если сообщение не найдено - создаём новое
+        await callback.message.answer(
+            f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
+            f"{hitalic('Ищем лучшие фильмы...')} ⏳"
+        )
+        await callback.answer()
+        return
 
     try:
         client = await get_tmdb_client()
@@ -121,13 +133,16 @@ async def process_mood(callback: CallbackQuery):
         result = await client.discover_movies(genre_id=genre_id)
 
         if not result or not result.get("results"):
-            await callback.message.edit_text(
-                f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
-                f"😢 Не удалось найти фильмы. Попробуй позже.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="◀️ Назад к жанрам", callback_data="nav_back")]
-                ])
-            )
+            try:
+                await callback.message.edit_text(
+                    f"{mood_data['emoji']} {hbold(mood_data['name'])}\n\n"
+                    f"😢 Не удалось найти фильмы. Попробуй позже.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="◀️ Назад к жанрам", callback_data="nav_back")]
+                    ])
+                )
+            except:
+                pass
             await callback.answer()
             return
 
@@ -139,18 +154,21 @@ async def process_mood(callback: CallbackQuery):
         mood_cache[user_id] = {
             "mood": mood_key,
             "all_movies": all_movies,
-            "page": 0  # страница 0 = первые 5 фильмов
+            "page": 0
         }
 
         await show_movies_page(callback.message, user_id, mood_data, page=0)
 
     except Exception as e:
-        await callback.message.edit_text(
-            f"❌ Ошибка: {str(e)}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="◀️ Назад", callback_data="nav_back")]
-            ])
-        )
+        try:
+            await callback.message.edit_text(
+                f"❌ Ошибка: {str(e)}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="◀️ Назад", callback_data="nav_back")]
+                ])
+            )
+        except:
+            pass
     await callback.answer()
 
 
@@ -166,7 +184,6 @@ async def show_movies_page(message: Message, user_id: int, mood_data: dict, page
     movies_to_show = all_movies[start_idx:end_idx]
 
     if not movies_to_show:
-        # Если фильмы кончились, показываем первую страницу
         page = 0
         movies_to_show = all_movies[:5]
         cache["page"] = 0
@@ -195,36 +212,29 @@ async def show_movies_page(message: Message, user_id: int, mood_data: dict, page
     text += f"\n🎯 Настроение: {mood_data['name']}"
 
     # Кнопки навигации
-    nav_buttons = []
-
-    # Кнопка "Другие" (следующая страница)
-    nav_buttons.append(InlineKeyboardButton(
-        text="🎲 Другие",
-        callback_data=f"mood_page_{page + 1}"
-    ))
-
-    nav_buttons.append(InlineKeyboardButton(
-        text="🏠 Меню",
-        callback_data="nav_main"
-    ))
-
+    nav_buttons = [
+        InlineKeyboardButton(text="🎲 Другие", callback_data=f"mood_page{page + 1}"),
+        InlineKeyboardButton(text="🏠 Меню", callback_data="nav_main")
+    ]
     keyboard.inline_keyboard.append(nav_buttons)
 
-    # Сохраняем текущую страницу
     cache["page"] = page
 
-    # Отправляем или редактируем сообщение
-    if message.caption:  # если это фото с подписью
-        await message.edit_caption(caption=text, reply_markup=keyboard)
-    else:  # если это обычный текст
-        await message.edit_text(text, reply_markup=keyboard)
+    try:
+        if message.caption:
+            await message.edit_caption(caption=text, reply_markup=keyboard)
+        else:
+            await message.edit_text(text, reply_markup=keyboard)
+    except:
+        # Если не получается отредактировать - отправляем новое
+        await message.answer(text, reply_markup=keyboard)
 
 
-@router.callback_query(F.data.startswith("mood_page_"))
+@router.callback_query(F.data.startswith("mood_page"))
 async def mood_page(callback: CallbackQuery):
     """Переключение страницы с фильмами"""
     try:
-        page = int(callback.data.replace("mood_page_", ""))
+        page = int(callback.data.replace("mood_page", ""))
     except:
         page = 0
 
@@ -236,12 +246,14 @@ async def mood_page(callback: CallbackQuery):
 
     cache = mood_cache[user_id]
     mood_data = MOOD_MAP.get(cache["mood"])
+    if not mood_data:
+        await callback.answer("Ошибка", show_alert=True)
+        return
 
     await show_movies_page(callback.message, user_id, mood_data, page)
     await callback.answer()
 
 
-# Функция для возврата к результатам настроения (для навигации)
 async def show_mood_results(message: Message, user_id: int):
     """Показать сохраненные результаты настроения"""
     if user_id not in mood_cache:

@@ -8,7 +8,7 @@ import json
 
 from bot.services.tmdb_api import get_tmdb_client
 from bot.services.movie_service import search_movies_all
-from bot.database.db import save_movie, get_favorites, add_search_history
+from bot.database.db import save_movie, get_favorites, add_search_history, add_experience
 from bot.keyboards.reply import get_main_keyboard
 
 router = Router()
@@ -32,7 +32,8 @@ async def cmd_search(message: Message):
 @router.message(F.text & ~F.text.startswith("/") & ~F.text.startswith("🎲")
                 & ~F.text.startswith("🔍") & ~F.text.startswith("❤️")
                 & ~F.text.startswith("📊") & ~F.text.startswith("🎯")
-                & ~F.text.startswith("❓"))
+                & ~F.text.startswith("❓") & ~F.text.startswith("🤖"))  # ← ДОБАВЛЕНО!
+
 async def process_search(message: Message):
     """Поиск по названию (TMDb + Kinopoisk)"""
     query = message.text.strip()
@@ -45,14 +46,17 @@ async def process_search(message: Message):
     wait_msg = await message.answer(f"🔎 Ищу: {hbold(query)}...")
 
     try:
-        # 🔥 Ищем ВЕЗДЕ (TMDb + Kinopoisk)
         results = await search_movies_all(query)
 
-        # Безопасное удаление сообщения
+        # 🔥 СОХРАНЯЕМ В ИСТОРИЮ (ВОТ ЭТА СТРОКА!)
+        await add_search_history(user_id, query)
+
+        await add_experience(user_id, 3)
+
         try:
             await wait_msg.delete()
         except:
-            pass  # Если сообщение уже удалено - игнорируем
+            pass
 
         if not results:
             await message.answer(
@@ -62,7 +66,6 @@ async def process_search(message: Message):
             )
             return
 
-        # Сохраняем результаты
         search_cache[user_id] = {
             "query": query,
             "results": results[:10],
@@ -74,7 +77,10 @@ async def process_search(message: Message):
         await show_search_result(message, user_id, 0)
 
     except Exception as e:
-        await wait_msg.delete()
+        try:
+            await wait_msg.delete()
+        except:
+            pass
         await message.answer(f"❌ Ошибка: {str(e)}", reply_markup=get_main_keyboard())
 
 
@@ -130,6 +136,11 @@ async def show_search_result(message: Message, user_id: int, index: int):
         InlineKeyboardButton(text=fav_text, callback_data=f"fav_{formatted['id']}")
     ])
 
+    # 🔥 НОВАЯ КНОПКА ПОХОЖИХ
+    keyboard.inline_keyboard.append([
+        InlineKeyboardButton(text="🔍 Похожие", callback_data=f"similar_{formatted['id']}")
+    ])
+
     keyboard.inline_keyboard.append([
         InlineKeyboardButton(text="🏠 Меню", callback_data="nav_main")
     ])
@@ -153,15 +164,15 @@ async def show_search_result(message: Message, user_id: int, index: int):
     source_name = "TMDb" if movie.get('source') == 'tmdb' else "Kinopoisk"
 
     caption = (
-        f"{source_emoji} {hbold(formatted['title'])} ({formatted['year']})\n"
-        f"📌 {hitalic(f'Источник: {source_name}')}\n\n"
-        f"{rating_text}\n"
-        f"{genres_text}\n\n"
-        f"📝 {description}"
+        f"🎬 {hbold(formatted['title'])} ({formatted['year']})\n"
+        f"{'🌟' if formatted['rating'] > 7 else '⭐'} {hitalic(f'Рейтинг: {formatted["rating"]}/10')}\n"
+        f"📌 {formatted['genres']}\n\n"
+        f"📝 {description}\n\n"
+        f"🔍 Результат {current} из {total}"
     )
+
     poster_url = movie.get('poster') or formatted.get('poster_url')
 
-    # Если нет постера - используем заглушку
     if not poster_url:
         poster_url = "https://via.placeholder.com/300x450?text=No+Poster"
 

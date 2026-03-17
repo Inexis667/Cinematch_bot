@@ -76,21 +76,22 @@ async def show_profile(message: Message):
 
     profile_text += genre_text
 
-    # Достижения
     achievements = []
-    if stats['fav_count'] >= 1:
-        achievements.append("🏺 Коллекционер")
-    if stats['fav_count'] >= 5:
-        achievements.append("🎯 Знаток")
-    if stats['search_count'] >= 10:
-        achievements.append("🔍 Исследователь")
-    if level >= 5:
+    if level >= 1:
+        achievements.append("🎬 Новичок")
+    if level >= 3:
         achievements.append("⭐ Киноман")
+    if level >= 5:
+        achievements.append("👑 Профи")
+    if level >= 7:
+        achievements.append("🔥 Гуру")
+    if level >= 9:
+        achievements.append("🏆 Легенда")
     if level >= 10:
-        achievements.append("👑 Легенда")
+        achievements.append("✨ Бог кино")
 
     if achievements:
-        profile_text += f"\n🏆 {hbold('ДОСТИЖЕНИЯ:')}\n"
+        profile_text += f"\n🏆 ДОСТИЖЕНИЯ:\n"
         for ach in achievements:
             profile_text += f"• {ach}\n"
 
@@ -158,15 +159,54 @@ async def show_history(callback: CallbackQuery):
         if isinstance(date, str):
             date = date[:10]
         else:
-            date = date.strftime("%d.%m")
+            date = date.strftime("%d.%m.%Y")
         text += f"{i}. {hbold(item['query'])} ({date})\n"
 
-    text += "\n🔍 Нажимай кнопки и ищи!"
+    text += "\n🔍 Нажми на любой запрос, чтобы найти снова!"
 
-    await callback.message.edit_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="◀️ Назад", callback_data="nav_back")]
+    # Создаём клавиатуру с кнопками для каждого запроса
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+
+    for item in history[:5]:  # Показываем последние 5 запросов
+        query = item['query']
+        keyboard.inline_keyboard.append([
+            InlineKeyboardButton(
+                text=f"🔍 {query}",
+                callback_data=f"history_{query}"
+            )
         ])
-    )
+
+    keyboard.inline_keyboard.append([
+        InlineKeyboardButton(text="◀️ Назад", callback_data="nav_back"),
+        InlineKeyboardButton(text="🏠 Меню", callback_data="nav_main")
+    ])
+
+    await callback.message.edit_text(text, reply_markup=keyboard)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("history_"))
+async def history_search(callback: CallbackQuery):
+    """Повторить поиск из истории"""
+    query = callback.data.replace("history_", "")
+
+    # Имитируем ввод текста для поиска
+    from bot.handlers.search import process_search
+
+    # Создаём псевдо-сообщение с текстом запроса
+    class FakeMessage:
+        def __init__(self, text, user_id, chat_id):
+            self.text = text
+            self.from_user = type('User', (), {'id': user_id})()
+            self.chat = type('Chat', (), {'id': chat_id})()
+            self.bot = callback.bot
+
+        async def answer(self, *args, **kwargs):
+            return await callback.message.answer(*args, **kwargs)
+
+        async def answer_photo(self, *args, **kwargs):
+            return await callback.message.answer_photo(*args, **kwargs)
+
+    fake_msg = FakeMessage(query, callback.from_user.id, callback.message.chat.id)
+    await process_search(fake_msg)
     await callback.answer()
