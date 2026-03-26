@@ -199,23 +199,14 @@ async def go_to_main(callback: CallbackQuery):
 
 @router.callback_query(F.data == "nav_back")
 async def go_back(callback: CallbackQuery):
-    """Умный возврат назад - СНАЧАЛА ПОИСК, ПОТОМ ИЗБРАННОЕ"""
+    """Умный возврат назад - СНАЧАЛА ИЗБРАННОЕ, ПОТОМ ПОИСК"""
     user_id = callback.from_user.id
 
     from bot.handlers.search import search_cache, show_search_result
     from bot.handlers.favorites import favorites_cache, show_favorite
     from bot.handlers.mood import mood_cache, show_mood_results
 
-    if user_id in search_cache:
-        data = search_cache[user_id]
-        try:
-            await callback.message.delete()
-        except:
-            pass
-        await show_search_result(callback.message, user_id, data["current"])
-        await callback.answer()
-        return
-
+    # 1️⃣ СНАЧАЛА ПРОВЕРЯЕМ ИЗБРАННОЕ (потому что ты в нём!)
     if user_id in favorites_cache:
         data = favorites_cache[user_id]
         try:
@@ -226,6 +217,18 @@ async def go_back(callback: CallbackQuery):
         await callback.answer()
         return
 
+    # 2️⃣ ПОТОМ ПОИСК
+    if user_id in search_cache:
+        data = search_cache[user_id]
+        try:
+            await callback.message.delete()
+        except:
+            pass
+        await show_search_result(callback.message, user_id, data["current"])
+        await callback.answer()
+        return
+
+    # 3️⃣ ПОТОМ НАСТРОЕНИЕ
     if user_id in mood_cache:
         try:
             await callback.message.delete()
@@ -236,6 +239,7 @@ async def go_back(callback: CallbackQuery):
         await callback.answer()
         return
 
+    # 4️⃣ И ТОЛЬКО ПОТОМ МЕНЮ
     try:
         await callback.message.delete()
     except:

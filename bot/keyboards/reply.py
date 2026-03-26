@@ -16,7 +16,7 @@ def get_main_keyboard() -> ReplyKeyboardMarkup:
 
     # Ряд 2 - Коллекции и профиль
     builder.row(
-        KeyboardButton(text="❤️ ИЗБРАННОЕ"),
+        KeyboardButton(text="❤️ МОЁ"),
         KeyboardButton(text="📊 ПРОФИЛЬ")
     )
 

@@ -5,7 +5,10 @@ from aiogram.utils.markdown import hbold, hitalic
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import json
 
-from bot.database.db import get_favorites, remove_from_favorites
+from bot.database.db import (
+    get_favorites, remove_from_favorites, add_to_favorites,
+    add_favorite_experience, get_movie
+)
 from bot.keyboards.reply import get_main_keyboard
 
 router = Router()
@@ -65,7 +68,7 @@ async def show_favorite(message: Message, user_id: int, index: int):
         InlineKeyboardButton(text="❌ Удалить", callback_data=f"fav_{movie['tmdb_id']}")
     ])
 
-    # 🔥 НОВАЯ КНОПКА ПОХОЖИХ
+    # Кнопка похожих
     keyboard.inline_keyboard.append([
         InlineKeyboardButton(text="🔍 Похожие", callback_data=f"similar_{movie['tmdb_id']}")
     ])
@@ -136,6 +139,72 @@ async def fav_next(callback: CallbackQuery):
         new_index = data["current"] + 1
         if new_index < data["total"]:
             data["current"] = new_index
-            await callback.message.delete()
+            try:
+                await callback.message.delete()
+            except:
+                pass
             await show_favorite(callback.message, user_id, new_index)
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("fav_") & ~F.data.startswith("fav_prev") & ~F.data.startswith("fav_next"))
+async def toggle_favorite(callback: CallbackQuery):
+    """Добавить/удалить из избранного"""
+    try:
+        movie_id = int(callback.data.split("_")[1])
+        user_id = callback.from_user.id
+
+        movie = await get_movie(movie_id)
+        if not movie:
+            await callback.answer("Фильм не найден", show_alert=True)
+            return
+
+        favorites = await get_favorites(user_id)
+        is_favorite = any(str(fav.get('tmdb_id')) == str(movie_id) for fav in favorites)
+
+        if is_favorite:
+            await remove_from_favorites(user_id, movie_id)
+            await callback.answer("❌ Удалено из избранного")
+
+            # ОБНОВЛЯЕМ КЭШ ПОСЛЕ УДАЛЕНИЯ
+            new_favorites = await get_favorites(user_id)
+            if new_favorites:
+                favorites_cache[user_id] = {
+                    "results": new_favorites,
+                    "current": 0,
+                    "total": len(new_favorites)
+                }
+                # Удаляем старое сообщение и показываем первый фильм
+                try:
+                    await callback.message.delete()
+                except:
+                    pass
+                await show_favorite(callback.message, user_id, 0)
+            else:
+                # Если избранное пусто
+                favorites_cache.pop(user_id, None)
+                try:
+                    await callback.message.delete()
+                except:
+                    pass
+                await callback.message.answer(
+                    f"📁 {hbold('ИЗБРАННОЕ')}\n\n"
+                    f"😢 {hitalic('Здесь пока пусто...')}\n\n"
+                    f"💡 Найди фильм через 🔍 ПОИСК или 🎲 РУЛЕТКУ",
+                    reply_markup=get_main_keyboard()
+                )
+        else:
+            await add_to_favorites(user_id, movie_id)
+            await add_favorite_experience(user_id)
+            await callback.answer("❤️ Добавлено в избранное")
+
+            # Обновляем кэш
+            new_favorites = await get_favorites(user_id)
+            favorites_cache[user_id] = {
+                "results": new_favorites,
+                "current": 0,
+                "total": len(new_favorites)
+            }
+
+    except Exception as e:
+        await callback.answer(f"Ошибка: {str(e)}", show_alert=True)
